@@ -1,0 +1,230 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import Navbar from "@/component/commonComp/navbar/Navbar";
+import { toast } from "@/lib/toast";
+
+type Vlog = {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+  createdAt: string; // ISO
+  category: string;
+};
+
+const CATEGORIES = [
+  "All",
+  "Personal Stories",
+  "Event Experiences",
+  "Tips & Guides",
+  "Inspiration",
+  "Education",
+  "Healthcare",
+  "Environment",
+  "Community",
+];
+
+const initialVlogs: Vlog[] = [
+  {
+    id: "v1",
+    title: "Why I Joined the Beach Cleanup",
+    content:
+      "Today I spent my morning at Juhu Beach for a cleanup drive. It was eye-opening to see how much plastic accumulates in just a small stretch. Meeting fellow volunteers reminded me that small actions can add up to big change.",
+    author: "John Doe",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    category: "Event Experiences",
+  },
+  {
+    id: "v2",
+    title: "Planting Trees with Friends",
+    content:
+      "We planted 20 saplings in our neighborhood park. The kids were excited to name each one! Hoping to see them grow strong over the next few months.",
+    author: "Jane Smith",
+    createdAt: new Date().toISOString(),
+    category: "Personal Stories",
+  },
+  {
+    id: "v3",
+    title: "How to Start a Neighborhood Cleanup",
+    content:
+      "Practical steps: pick a date, get local permissions if needed, gather supplies (gloves, bags), spread the word, and set clear zones for volunteers.",
+    author: "Amit Patel",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+    category: "Tips & Guides",
+  },
+];
+
+export default function VlogsPage() {
+  const [vlogs, setVlogs] = useState<Vlog[]>(initialVlogs);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [composeCategory, setComposeCategory] = useState<string>("Personal Stories");
+  const enableApi = !!process.env.NEXT_PUBLIC_API_URL;
+
+  useEffect(() => {
+    // Optionally fetch existing insights/vlogs when API configured
+    const fetchVlogs = async () => {
+      try {
+        const res = await fetch(`/api/post-vlogs`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const posts = Array.isArray(data) ? data : Array.isArray(data?.posts) ? data.posts : [];
+        const mapped: Vlog[] = posts.map((p: Record<string, unknown>) => ({
+          id: String(p._id ?? p.id ?? Math.random()),
+          title: p.title ?? "Untitled",
+          content: p.description ?? p.content ?? "",
+          author: (p.author && typeof p.author === "object" && "name" in p.author && typeof p.author.name === "string" ? p.author.name : undefined) ?? (typeof window !== "undefined" ? sessionStorage.getItem("userName") || "Anonymous" : "Anonymous"),
+          createdAt: p.createdAt ?? new Date().toISOString(),
+          category: p.domain ?? "Personal Stories",
+        }));
+        if (mapped.length > 0) setVlogs(mapped);
+        setError("");
+      } catch (err) {
+        console.error("Failed to fetch vlogs:", err);
+        setError(""); // silent fail, keep mock
+      }
+    };
+    fetchVlogs();
+  }, [enableApi]);
+
+  const handlePost = async () => {
+    if (!title.trim() || !content.trim()) {
+      toast.error("Please add a title and some content.");
+      return;
+    }
+    setPosting(true);
+    try {
+      const author = (typeof window !== "undefined" ? sessionStorage.getItem("userName") : null) || "Anonymous";
+      const newVlog: Vlog = {
+        id: "v-" + Math.random().toString(36).slice(2, 9),
+        title: title.trim(),
+        content: content.trim(),
+        author,
+        createdAt: new Date().toISOString(),
+        category: composeCategory,
+      };
+
+      if (enableApi) {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        const token = typeof window !== "undefined" ? sessionStorage.getItem("userToken") : null;
+        try {
+          const res = await fetch(`${baseUrl}/api/posts`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              title: newVlog.title,
+              description: newVlog.content,
+              type: "insight", // align with existing content types
+              domain: newVlog.category,
+            }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+          console.warn("API post failed, storing locally:", err);
+        }
+      }
+
+      setVlogs((prev) => [newVlog, ...prev]);
+      setTitle("");
+      setContent("");
+      toast.success("Your vlog has been posted.");
+      setError("");
+    } catch (err) {
+      console.error("Post vlog error:", err);
+      toast.error("Could not post your vlog. Please try again.");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  return (
+    <>
+      <Navbar />
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Vlogs</h1>
+          <p className="text-gray-600 mt-2">Share your thoughts and experiences; browse by type.</p>
+        </div>
+
+        {/* Category filter */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {CATEGORIES.map((cat) => (
+            <button
+            
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                selectedCategory === cat
+                  ? "bg-green-500 text-white border-green-500"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Compose box */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-8">
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <select
+              value={composeCategory}
+              onChange={(e) => setComposeCategory(e.target.value)}
+              className="w-full border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {CATEGORIES.filter((c) => c !== "All").map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+            className="w-full border border-gray-200 rounded-md px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="What’s on your mind? Share your experience..."
+            rows={5}
+            className="w-full border border-gray-200 rounded-md px-3 py-2 mb-3 resize-y focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <div className="flex items-center justify-end">
+            <button
+              onClick={handlePost}
+              disabled={posting}
+              className="px-4 py-2 rounded-md bg-green-500 text-white hover:bg-green-600 disabled:opacity-60"
+            >
+              {posting ? "Posting..." : "Post Vlog"}
+            </button>
+          </div>
+        </div>
+
+        {/* Vlog list */}
+        <div className="space-y-4">
+          {(selectedCategory === "All" ? vlogs : vlogs.filter((v) => v.category === selectedCategory)).map((vlog) => (
+            <article key={vlog.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+              <h2 className="text-lg font-semibold text-gray-900">{vlog.title}</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                By {vlog.author} • {new Date(vlog.createdAt).toLocaleString()} • {vlog.category}
+              </p>
+              <p className="mt-3 text-gray-700 whitespace-pre-line">{vlog.content}</p>
+            </article>
+          ))}
+        </div>
+
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      </div>
+    </>
+  );
+}
