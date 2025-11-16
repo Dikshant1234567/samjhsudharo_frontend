@@ -111,27 +111,38 @@ export default function PostFeed() {
         setPosts(mockPosts);
         setError('');
       } else {
-        const mapped: Post[] = rawPosts.map((p: BackendPost) => ({
-          id: String(p._id ?? p.id ?? ''),
-          title: String(p.title ?? ''),
-          description: String(p.description ?? ''),
-          location: p.locationText ?? (p.location ? `${p.location.district ?? ''}${p.location.state ? ', ' + p.location.state : ''}` : ''),
-          domain: String(p.domain ?? ''),
-          postType: p.date || p.time ? 'event' : 'vlog',
-          date: p.date,
-          time: p.time,
-          volunteerCount: Array.isArray(p.volunteers) ? p.volunteers.length : undefined,
-          images: Array.isArray(p.images) ? p.images : [],
-          author: {
-            id: String((p.author as BackendAuthor)?._id ?? ''),
-            name: ((p.author as BackendAuthor)?.name ?? `${(p.author as BackendAuthor)?.firstName ?? ''} ${(p.author as BackendAuthor)?.lastName ?? ''}`.trim()) || 'Unknown',
-            isOrganization: false,
-          },
-          likes: Array.isArray(p.likes) ? p.likes.length : 0,
-          comments: Array.isArray(p.comments) ? p.comments.length : 0,
-          createdAt: String(p.createdAt ?? new Date().toISOString()),
-          isLiked: false,
-        }));
+        const mapped: Post[] = rawPosts.map((p: BackendPost) => {
+          const authorObj = p.author as BackendAuthor | undefined;
+          const authorId =
+            typeof p.author === 'string'
+              ? String(p.author)
+              : String(authorObj?._id ?? '');
+          const authorName =
+            (authorObj?.name ??
+            `${authorObj?.firstName ?? ''} ${authorObj?.lastName ?? ''}`.trim()) ||
+            'Unknown';
+          return {
+            id: String(p._id ?? p.id ?? ''),
+            title: String(p.title ?? ''),
+            description: String(p.description ?? ''),
+            location: p.locationText ?? (p.location ? `${p.location.district ?? ''}${p.location.state ? ', ' + p.location.state : ''}` : ''),
+            domain: String(p.domain ?? ''),
+            postType: p.date || p.time ? 'event' : 'vlog',
+            date: p.date,
+            time: p.time,
+            volunteerCount: Array.isArray(p.volunteers) ? p.volunteers.length : undefined,
+            images: Array.isArray(p.images) ? p.images : [],
+            author: {
+              id: authorId,
+              name: authorName,
+              isOrganization: false,
+            },
+            likes: Array.isArray(p.likes) ? p.likes.length : 0,
+            comments: Array.isArray(p.comments) ? p.comments.length : 0,
+            createdAt: String(p.createdAt ?? new Date().toISOString()),
+            isLiked: false,
+          };
+        });
         setPosts(mapped);
       }
     } catch (err) {
@@ -329,126 +340,134 @@ export default function PostFeed() {
             <p className="text-gray-500">No posts found. Try changing your filters or check back later.</p>
           </div>
         ) : (
-          posts.map((post) => (
-            <div key={post.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-              {/* Post Header */}
-              <div className="p-4 flex items-center space-x-3">
-                <div className="relative h-10 w-10 rounded-full overflow-hidden">
-                  {post.author.profileImage ? (
-                    <Image 
-                      src={post.author.profileImage} 
-                      alt={post.author.name}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-500 text-sm">{post.author.name.charAt(0)}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <Link href={`/profile/${post.author.id}`} className="font-medium text-gray-900 hover:underline">
-                    {post.author.name}
-                  </Link>
-                  <div className="flex items-center text-sm text-gray-500">
-                    <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                    {post.author.isOrganization && post.author.rating && (
-                      <div className="ml-2 flex items-center">
-                        <span className="text-yellow-500">★</span>
-                        <span className="ml-1">{post.author.rating}</span>
+          posts.map((post) => {
+            const authorId = post.author?.id || undefined;
+            const authorName = post.author?.name || 'Anonymous';
+            return (
+              <div key={post.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                {/* Post Header */}
+                <div className="p-4 flex items-center space-x-3">
+                  <div className="relative h-10 w-10 rounded-full overflow-hidden">
+                    {post.author.profileImage ? (
+                      <Image 
+                        src={post.author.profileImage} 
+                        alt={authorName}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-gray-200 flex items-center justify-center">
+                        <span className="text-gray-500 text-sm">{(authorName || 'A').charAt(0)}</span>
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center space-x-1 px-2 py-1 rounded-full bg-gray-100">
-                  {post.postType === 'event' ? (
-                    <Calendar className="h-4 w-4 text-blue-500" />
-                  ) : (
-                    <Tag className="h-4 w-4 text-green-500" />
-                  )}
-                  <span className="text-xs font-medium capitalize">
-                    {post.postType}
-                  </span>
-                </div>
-              </div>
-              
-              {/* Post Content */}
-              <div className="px-4 pb-2">
-                <h2 className="text-xl font-semibold mb-2">{post.title}</h2>
-                <p className="text-gray-700 mb-3">{post.description}</p>
-                
-                {/* Post Metadata */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <div className="flex items-center text-sm text-gray-500">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    <span>{post.location}</span>
-                  </div>
-                  
-                  <div className="flex items-center text-sm text-gray-500">
-                    <Tag className="h-4 w-4 mr-1" />
-                    <span>{post.domain}</span>
-                  </div>
-                  
-                  {post.postType === 'event' && (
-                    <>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        <span>{post.date}</span>
-                      </div>
-                      
-                      {post.volunteerCount && post.volunteerCount > 0 && (
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Users className="h-4 w-4 mr-1" />
-                          <span>{post.volunteerCount} volunteers needed</span>
+                  <div className="flex-1">
+                    {authorId ? (
+                      <Link href={`/profile/${authorId}`} className="font-medium text-gray-900 hover:underline">
+                        {authorName}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-gray-900">{authorName}</span>
+                    )}
+                    <div className="flex items-center text-sm text-gray-500">
+                      <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                      {post.author.isOrganization && post.author.rating && (
+                        <div className="ml-2 flex items-center">
+                          <span className="text-yellow-500">★</span>
+                          <span className="ml-1">{post.author.rating}</span>
                         </div>
                       )}
-                    </>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1 px-2 py-1 rounded-full bg-gray-100">
+                    {post.postType === 'event' ? (
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                    ) : (
+                      <Tag className="h-4 w-4 text-green-500" />
+                    )}
+                    <span className="text-xs font-medium capitalize">
+                      {post.postType}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Post Content */}
+                <div className="px-4 pb-2">
+                  <h2 className="text-xl font-semibold mb-2">{post.title}</h2>
+                  <p className="text-gray-700 mb-3">{post.description}</p>
+                  
+                  {/* Post Metadata */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <div className="flex items-center text-sm text-gray-500">
+                      <MapPin className="h-4 w-4 mr-1" />
+                      <span>{post.location}</span>
+                    </div>
+                    
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Tag className="h-4 w-4 mr-1" />
+                      <span>{post.domain}</span>
+                    </div>
+                    
+                    {post.postType === 'event' && (
+                      <>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Calendar className="h-4 w-4 mr-1" />
+                          <span>{post.date}</span>
+                        </div>
+                        
+                        {post.volunteerCount && post.volunteerCount > 0 && (
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Users className="h-4 w-4 mr-1" />
+                            <span>{post.volunteerCount} volunteers needed</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Post Images */}
+                {post.images && post.images.length > 0 && (
+                  <div className="relative h-64 w-full">
+                    <Image 
+                      src={post.images[0]} 
+                      alt={post.title}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                )}
+                
+                {/* Post Actions */}
+                <div className="px-4 py-3 border-t border-gray-100 flex justify-between">
+                  <button 
+                    onClick={() => handleLike(post.id)}
+                    className={`flex items-center space-x-1 ${post.isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}
+                  >
+                    <Heart className={`h-5 w-5 ${post.isLiked ? 'fill-current' : ''}`} />
+                    <span>{post.likes}</span>
+                  </button>
+                  
+                  <Link href={`/post/${post.id}`} className="flex items-center space-x-1 text-gray-500 hover:text-blue-500">
+                    <MessageCircle className="h-5 w-5" />
+                    <span>{post.comments}</span>
+                  </Link>
+                  
+                  <button className="flex items-center space-x-1 text-gray-500 hover:text-green-500">
+                    <Share2 className="h-5 w-5" />
+                    <span>Share</span>
+                  </button>
+                  
+                  {post.postType === 'event' && (
+                    <button className="flex items-center space-x-1 text-white bg-green-500 px-3 py-1 rounded-md hover:bg-green-600">
+                      <Users className="h-4 w-4" />
+                      <span>Join</span>
+                    </button>
                   )}
                 </div>
               </div>
-              
-              {/* Post Images */}
-              {post.images && post.images.length > 0 && (
-                <div className="relative h-64 w-full">
-                  <Image 
-                    src={post.images[0]} 
-                    alt={post.title}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              )}
-              
-              {/* Post Actions */}
-              <div className="px-4 py-3 border-t border-gray-100 flex justify-between">
-                <button 
-                  onClick={() => handleLike(post.id)}
-                  className={`flex items-center space-x-1 ${post.isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}
-                >
-                  <Heart className={`h-5 w-5 ${post.isLiked ? 'fill-current' : ''}`} />
-                  <span>{post.likes}</span>
-                </button>
-                
-                <Link href={`/post/${post.id}`} className="flex items-center space-x-1 text-gray-500 hover:text-blue-500">
-                  <MessageCircle className="h-5 w-5" />
-                  <span>{post.comments}</span>
-                </Link>
-                
-                <button className="flex items-center space-x-1 text-gray-500 hover:text-green-500">
-                  <Share2 className="h-5 w-5" />
-                  <span>Share</span>
-                </button>
-                
-                {post.postType === 'event' && (
-                  <button className="flex items-center space-x-1 text-white bg-green-500 px-3 py-1 rounded-md hover:bg-green-600">
-                    <Users className="h-4 w-4" />
-                    <span>Join</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

@@ -3,12 +3,15 @@
 import React, { useEffect, useState } from "react";
 import Navbar from "@/component/commonComp/navbar/Navbar";
 import { toast } from "@/lib/toast";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type Vlog = {
   id: string;
   title: string;
   content: string;
   author: string;
+  authorId?: string; // added for linking to user details
   createdAt: string; // ISO
   category: string;
 };
@@ -64,6 +67,7 @@ export default function VlogsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [composeCategory, setComposeCategory] = useState<string>("Personal Stories");
   const enableApi = !!process.env.NEXT_PUBLIC_API_URL;
+  const router = useRouter();
 
   useEffect(() => {
     // Optionally fetch existing insights/vlogs when API configured
@@ -73,14 +77,27 @@ export default function VlogsPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const posts = Array.isArray(data) ? data : Array.isArray(data?.posts) ? data.posts : [];
-        const mapped: Vlog[] = posts.map((p: Record<string, unknown>) => ({
-          id: String(p._id ?? p.id ?? Math.random()),
-          title: p.title ?? "Untitled",
-          content: p.description ?? p.content ?? "",
-          author: (p.author && typeof p.author === "object" && "name" in p.author && typeof p.author.name === "string" ? p.author.name : undefined) ?? (typeof window !== "undefined" ? sessionStorage.getItem("userName") || "Anonymous" : "Anonymous"),
-          createdAt: p.createdAt ?? new Date().toISOString(),
-          category: p.domain ?? "Personal Stories",
-        }));
+        const mapped: Vlog[] = posts.map((p: Record<string, any>) => {
+          const authorObj = p.author;
+          const authorId =
+            typeof authorObj === "string"
+              ? String(authorObj)
+              : String(authorObj?._id ?? "");
+          const authorName =
+            typeof authorObj === "string"
+              ? "Unknown"
+              : (authorObj?.name ??
+                 (`${authorObj?.firstName ?? ""} ${authorObj?.lastName ?? ""}`.trim() || "Unknown"));
+          return {
+            id: String(p._id ?? p.id ?? Math.random()),
+            title: p.title ?? "Untitled",
+            content: p.description ?? p.content ?? "",
+            author: authorName ?? (typeof window !== "undefined" ? sessionStorage.getItem("userName") || "Anonymous" : "Anonymous"),
+            authorId: authorId || undefined,
+            createdAt: p.createdAt ?? new Date().toISOString(),
+            category: p.domain ?? "Personal Stories",
+          };
+        });
         if (mapped.length > 0) setVlogs(mapped);
         setError("");
       } catch (err) {
@@ -91,6 +108,11 @@ export default function VlogsPage() {
     fetchVlogs();
   }, [enableApi]);
 
+  useEffect(() => {
+    const id = typeof window !== 'undefined' ? sessionStorage.getItem('userId') : null;
+    if (!id) router.push('/login');
+  }, [router]);
+
   const handlePost = async () => {
     if (!title.trim() || !content.trim()) {
       toast.error("Please add a title and some content.");
@@ -98,12 +120,14 @@ export default function VlogsPage() {
     }
     setPosting(true);
     try {
-      const author = (typeof window !== "undefined" ? sessionStorage.getItem("userName") : null) || "Anonymous";
+      const authorName = (typeof window !== "undefined" ? sessionStorage.getItem("userName") : null) || "Anonymous";
+      const authorId = typeof window !== "undefined" ? sessionStorage.getItem("userId") ?? undefined : undefined;
       const newVlog: Vlog = {
         id: "v-" + Math.random().toString(36).slice(2, 9),
         title: title.trim(),
         content: content.trim(),
-        author,
+        author: authorName,
+        authorId, // include for linking
         createdAt: new Date().toISOString(),
         category: composeCategory,
       };
@@ -147,7 +171,7 @@ export default function VlogsPage() {
   return (
     <>
       <Navbar />
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Vlogs</h1>
           <p className="text-gray-600 mt-2">Share your thoughts and experiences; browse by type.</p>
@@ -216,7 +240,14 @@ export default function VlogsPage() {
             <article key={vlog.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
               <h2 className="text-lg font-semibold text-gray-900">{vlog.title}</h2>
               <p className="mt-1 text-sm text-gray-500">
-                By {vlog.author} • {new Date(vlog.createdAt).toLocaleString()} • {vlog.category}
+                By {vlog.authorId ? (
+                  <Link href={`/profile/${vlog.authorId}`} className="text-green-600 hover:text-green-700 font-medium">
+                    {vlog.author}
+                  </Link>
+                ) : (
+                  <span className="font-medium">{vlog.author}</span>
+                )}{" "}
+                • {new Date(vlog.createdAt).toLocaleString()} • {vlog.category}
               </p>
               <p className="mt-3 text-gray-700 whitespace-pre-line">{vlog.content}</p>
             </article>

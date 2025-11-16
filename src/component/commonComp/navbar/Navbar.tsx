@@ -9,10 +9,13 @@ import { useAppDispatch, useAppSelector } from "@/lib/hooks";
 import { toggleAddPostModal, setAddPostType } from "@/lib/slices/modalSlice";
 import NotificationBell from "./NotificationBell";
 import NotificationDrawer from "../../../component/notifications/NotificationDrawer";
+import { useRouter } from "next/navigation";
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
   
   const dispatch = useAppDispatch();
   const { } = useAppSelector((state) => state.modal);
@@ -25,8 +28,11 @@ const Navbar: React.FC = () => {
     handleToggleAddPostModal();
     
   };
+  React.useEffect(() => {
+    const id = typeof window !== 'undefined' ? sessionStorage.getItem('userId') : null;
+    setIsLoggedIn(!!id);
+  }, []);
   
-
   return (
     <motion.div
       initial={{ opacity: 0, y: -20 }}
@@ -47,16 +53,27 @@ const Navbar: React.FC = () => {
             <Link href="/" className="text-white hover:text-green-100 font-medium transition-colors">
               Home
             </Link>
-            <Link href="/events" className="text-white hover:text-green-100 font-medium transition-colors">
+            <Link href="/events" className={`text-white ${isLoggedIn ? 'hover:text-green-100' : 'opacity-70'} font-medium transition-colors`}
+              onClick={(e) => {
+                if (!isLoggedIn) { e.preventDefault(); router.push('/login'); }
+              }}
+            >
               Events
             </Link>
-            <Link href="/vlogs" className="text-white hover:text-green-100 font-medium transition-colors">
+            <Link href="/vlogs" className={`text-white ${isLoggedIn ? 'hover:text-green-100' : 'opacity-70'} font-medium transition-colors`}
+              onClick={(e) => {
+                if (!isLoggedIn) { e.preventDefault(); router.push('/login'); }
+              }}
+            >
               Vlogs
             </Link>
             <div className="relative">
               <button
-                className="bg-white text-green-700 px-4 py-2 rounded-full hover:bg-green-50 transition-colors font-medium"
-                onClick={() => setShowPostMenu((v) => !v)}
+                className={`bg-white text-green-700 px-4 py-2 rounded-full ${isLoggedIn ? 'hover:bg-green-50' : 'opacity-70'} transition-colors font-medium`}
+                onClick={() => {
+                  if (!isLoggedIn) { router.push('/login'); return; }
+                  setShowPostMenu((v) => !v);
+                }}
               >
                 + Post Activity
               </button>
@@ -84,7 +101,7 @@ const Navbar: React.FC = () => {
             />
             <Link href="/profile" aria-label="Go to profile">
               <UserRound 
-                className="cursor-pointer text-white hover:text-green-100 transition-colors" 
+                className={`cursor-pointer text-white ${isLoggedIn ? 'hover:text-green-100' : 'opacity-70'} transition-colors`}
                 size={24}
               />
             </Link>
@@ -102,35 +119,41 @@ const Navbar: React.FC = () => {
         {isOpen && (
           <motion.div
             className="md:hidden bg-green-50 shadow-md flex flex-col space-y-3 px-6 py-4"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
           >
-            <Link 
+            <Link
               href="/"
               className="text-green-700 hover:text-green-800 font-medium transition-colors duration-200"
               onClick={() => setIsOpen(false)}
             >
               Home
             </Link>
-            <Link 
+            <Link
               href="/events"
-              className="text-green-700 hover:text-green-800 font-medium transition-colors duration-200"
-              onClick={() => setIsOpen(false)}
+              className={`text-green-700 ${isLoggedIn ? 'hover:text-green-800' : 'opacity-60'} font-medium transition-colors duration-200`}
+              onClick={(e) => {
+                setIsOpen(false);
+                if (!isLoggedIn) { e.preventDefault(); router.push('/login'); }
+              }}
             >
               Events
             </Link>
-            <Link 
+            <Link
               href="/vlogs"
-              className="text-green-700 hover:text-green-800 font-medium transition-colors duration-200"
-              onClick={() => setIsOpen(false)}
+              className={`text-green-700 ${isLoggedIn ? 'hover:text-green-800' : 'opacity-60'} font-medium transition-colors duration-200`}
+              onClick={(e) => {
+                setIsOpen(false);
+                if (!isLoggedIn) { e.preventDefault(); router.push('/login'); }
+              }}
             >
               Vlogs
             </Link>
-            <Link 
+            <Link
               href="/profile"
-              className="text-green-700 hover:text-green-800 font-medium transition-colors duration-200"
-              onClick={() => setIsOpen(false)}
+              className={`text-green-700 ${isLoggedIn ? 'hover:text-green-800' : 'opacity-60'} font-medium transition-colors duration-200`}
+              onClick={(e) => {
+                setIsOpen(false);
+                if (!isLoggedIn) { e.preventDefault(); router.push('/login'); }
+              }}
             >
               Profile
             </Link>
@@ -138,6 +161,7 @@ const Navbar: React.FC = () => {
               className="bg-green-600 text-white px-4 py-2 rounded-full hover:bg-green-700 transition-colors text-left"
               onClick={() => {
                 setIsOpen(false);
+                if (!isLoggedIn) { router.push('/login'); return; }
                 setShowPostMenu(true);
               }}
             >

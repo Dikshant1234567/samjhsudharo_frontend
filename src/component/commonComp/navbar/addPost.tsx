@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/lib/hooks";
 import { setAddPostModalOpen, setAddPostType } from "@/lib/slices/modalSlice";
+import { useRouter } from "next/navigation";
 
 const AddPostModal: React.FC = () => {
   const socialWelfareDomains = [
@@ -39,11 +40,87 @@ const CATEGORIES = [
     dispatch(setAddPostModalOpen(false));
     dispatch(setAddPostType(null));
   };
-  const handleSubmit = (e: React.FormEvent) => {
+  const router = useRouter();
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission here
-    console.log("Post submitted");
-    onClose();
+
+    const userId = typeof window !== 'undefined' ? sessionStorage.getItem('userId') : null;
+    const userType = typeof window !== 'undefined' ? sessionStorage.getItem('userType') : null;
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('userToken') : null;
+
+    if (!userId || !userType) {
+      router.push('/login');
+      return;
+    }
+    const authorModel = userType === 'individual' ? 'individual_user' : 'ngo';
+
+    try {
+      const form = e.currentTarget as HTMLFormElement;
+      const formData = new FormData(form);
+
+      const endpoint = addPostType === 'event' ? '/api/post-events' : '/api/post-vlogs';
+      let body: Record<string, unknown> = {};
+
+      if (addPostType === 'vlog') {
+        const description = String(formData.get('vlog_area') || '').trim();
+        const domain = String(formData.get('vlogCategory') || 'Personal Stories');
+        const title = description ? description.slice(0, 60) : 'Untitled Vlog';
+        body = {
+          title,
+          description,
+          author: userId,
+          authorModel,
+          domain,
+          images: [],
+        };
+      } else if (addPostType === 'event') {
+        const domain = String(formData.get('eventDomain') || '');
+        const description = String(formData.get('eventDescription') || '').trim();
+        const reason = String(formData.get('eventReason') || '').trim();
+        const title = String(formData.get('eventTitle') || '') || (description ? description.slice(0, 60) : 'Untitled Event');
+        const date = String(formData.get('eventDate') || '');
+        const time = String(formData.get('eventTime') || '');
+        const requiredVolunteers = Number(formData.get('eventMinVolunteers') || 0);
+
+        body = {
+          title,
+          description: reason ? `${description}\n\nReason: ${reason}` : description,
+          author: userId,
+          authorModel,
+          domain,
+          date,
+          time,
+          requiredVolunteers,
+          images: [],
+          status: 'active',
+          priority: 'medium',
+        };
+      } else {
+        alert('Please select a post type.');
+        return;
+      }
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `Failed to create ${addPostType}`);
+      }
+
+      // Close modal and reflect changes
+      onClose();
+      router.push('/profile');
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : 'Failed to post activity');
+    }
   };
 
   return (
@@ -145,6 +222,19 @@ const CATEGORIES = [
 
                 {addPostType === 'event' && (
                   <>
+                    <div>
+                      <label htmlFor="eventTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                        Title
+                      </label>
+                      <input
+                        type="text"
+                        id="eventTitle"
+                        name="eventTitle"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="Event title"
+                        required
+                      />
+                    </div>
                     <div>
                       <label htmlFor="eventDomain" className="block text-sm font-medium text-gray-700 mb-2">
                         Type of domain

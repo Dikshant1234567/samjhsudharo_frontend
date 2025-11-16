@@ -49,6 +49,7 @@ export default function PostDetail() {
   const postId = params.id as string;
   
   const [post, setPost] = useState<Post | null>(null);
+  const [postType, setPostType] = useState<'event' | 'vlog' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [newComment, setNewComment] = useState('');
@@ -62,78 +63,65 @@ export default function PostDetail() {
   const fetchPostDetails = async () => {
     setLoading(true);
     try {
-      // In a real app, this would be an API call
-      // const token = sessionStorage.getItem('userToken');
-      // const response = await fetch(`http://localhost:5000/api/posts/${postId}`, {
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`
-      //   }
-      // });
-      
-      // if (!response.ok) {
-      //   throw new Error('Failed to fetch post details');
-      // }
-      
-      // const data = await response.json();
-      // setPost(data.post);
+      const res = await fetch(`/api/post-events/${postId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
 
-      // Mock data for development
-      const mockPost: Post = {
-        id: postId,
-        title: 'Beach Cleanup Drive in Mumbai',
-        description: 'Join us for a beach cleanup drive at Juhu Beach. Let\'s make our beaches clean and safe for everyone. We need volunteers to help collect plastic waste and educate visitors about the importance of keeping our beaches clean.\n\nWe will provide gloves, bags, and refreshments. Please wear comfortable clothes and bring a water bottle.',
-        location: 'Juhu Beach, Mumbai',
-        domain: 'Environment and Sustainability',
+      const authorObj = data.author; // populated by backend with _id, name/firstName/lastName
+      const authorId = typeof authorObj === 'string' ? String(authorObj) : String(authorObj?._id ?? '');
+      const authorName =
+        typeof authorObj === 'string'
+          ? 'Unknown'
+          : (authorObj?.name ??
+             (`${authorObj?.firstName ?? ''} ${authorObj?.lastName ?? ''}`.trim() || 'Unknown'));
+
+      const locationText =
+        data.locationText ??
+        [data.location?.district, data.location?.state, data.location?.country]
+          .filter(Boolean)
+          .join(', ');
+
+      const mapped: Post = {
+        id: String(data._id ?? postId),
+        title: String(data.title ?? 'Untitled Event'),
+        description: String(data.description ?? ''),
+        location: String(locationText ?? ''),
+        domain: String(data.domain ?? 'General'),
         postType: 'event',
-        date: '2023-08-15',
-        time: '09:00',
-        volunteerCount: 50,
-        images: ['https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80'],
+        date: String(data.date ?? ''),
+        time: String(data.time ?? ''),
+        volunteerCount: Number(data.requiredVolunteers ?? data.volunteerCount ?? 0),
+        images: Array.isArray(data.images) ? data.images : [],
         author: {
-          id: '101',
-          name: 'Clean Earth NGO',
-          profileImage: 'https://randomuser.me/api/portraits/men/1.jpg',
-          isOrganization: true,
-          rating: 4.8
+          id: authorId || 'unknown',
+          name: authorName,
+          profileImage: undefined,
+          isOrganization: String(data.authorModel ?? '').toLowerCase() !== 'individual_user',
+          rating: undefined,
         },
-        likes: 120,
-        comments: [
-          {
-            id: '1',
-            content: 'This is a great initiative! I\'ll be there with my friends.',
-            author: {
-              id: '201',
-              name: 'Priya Sharma',
-              profileImage: 'https://randomuser.me/api/portraits/women/1.jpg'
-            },
-            createdAt: '2023-07-29T10:30:00Z'
-          },
-          {
-            id: '2',
-            content: 'I participated in the last cleanup drive. It was a wonderful experience!',
-            author: {
-              id: '202',
-              name: 'Raj Patel',
-              profileImage: 'https://randomuser.me/api/portraits/men/2.jpg'
-            },
-            createdAt: '2023-07-30T14:20:00Z'
-          },
-          {
-            id: '3',
-            content: 'Will there be any transportation arranged from the city center?',
-            author: {
-              id: '203',
-              name: 'Anita Desai',
-              profileImage: 'https://randomuser.me/api/portraits/women/3.jpg'
-            },
-            createdAt: '2023-07-31T09:15:00Z'
-          }
-        ],
-        createdAt: '2023-07-28T10:30:00Z',
-        isLiked: false
+        likes: Array.isArray(data.likes) ? data.likes.length : 0,
+        comments: Array.isArray(data.comments)
+          ? data.comments.map((c: any) => ({
+              id: String(c._id ?? Math.random()),
+              content: String(c.text ?? ''),
+              author: {
+                id: String(typeof c.user === 'string' ? c.user : c.user?._id ?? 'unknown'),
+                name:
+                  typeof c.user === 'object'
+                    ? (c.user?.name ??
+                       (`${c.user?.firstName ?? ''} ${c.user?.lastName ?? ''}`.trim() || 'Anonymous'))
+                    : 'Anonymous',
+                profileImage: undefined,
+              },
+              createdAt: String(c.createdAt ?? new Date().toISOString()),
+            }))
+          : [],
+        createdAt: String(data.createdAt ?? new Date().toISOString()),
+        isLiked: false,
       };
-      
-      setPost(mockPost);
+
+      setPost(mapped);
+      setError('');
     } catch (err) {
       console.error('Error fetching post details:', err);
       setError('Failed to load post details. Please try again later.');
@@ -317,8 +305,42 @@ export default function PostDetail() {
           
           {/* Post Content */}
           <div className="p-4">
-            <h1 className="text-2xl font-semibold mb-3">{post.title}</h1>
-            <div className="whitespace-pre-line text-gray-700 mb-4">{post.description}</div>
+            {/* Organizer/Author */}
+            {(() => {
+              const authorObj =
+                post.author as { id?: string; name?: string; firstName?: string; lastName?: string } | string | undefined;
+            
+              const authorId =
+                typeof authorObj === 'string' ? String(authorObj) : String((authorObj as any)?.id ?? '');
+            
+              const authorName =
+                typeof authorObj === 'string'
+                  ? 'Unknown'
+                  : (
+                      (authorObj as any)?.name ??
+                      (
+                        `${(authorObj as any)?.firstName ?? ''} ${(authorObj as any)?.lastName ?? ''}`
+                          .trim() || 'Unknown'
+                      )
+                    );
+            
+              return (
+                <div className="text-sm text-gray-600 mb-3">
+                  {post.postType === 'event' ? 'Organized by: ' : 'Posted by: '}
+                  {authorId ? (
+                    <Link href={`/profile/${authorId}`} className="text-green-600 hover:text-green-700 font-medium">
+                      {authorName}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{authorName}</span>
+                  )}
+                </div>
+              );
+            })()}
+            {/* Description */}
+            {post.description && (
+              <p className="text-gray-700 mb-4 whitespace-pre-line">{post.description}</p>
+            )}
             
             {/* Post Metadata */}
             <div className="flex flex-wrap gap-3 mb-4">

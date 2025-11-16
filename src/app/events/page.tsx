@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/component/commonComp/navbar/Navbar";
 import VolunteerRegistration from "@/component/events/VolunteerRegistration";
+import { useRouter } from "next/navigation";
 
 type EventItem = {
   id: string;
@@ -84,6 +85,7 @@ export default function EventsPage() {
     open: boolean;
     event?: EventItem;
   }>({ open: false });
+  const router = useRouter();
 
   const enableApi = true;
 
@@ -127,6 +129,11 @@ export default function EventsPage() {
     };
     fetchEvents();
   }, [enableApi]);
+
+  useEffect(() => {
+    const id = typeof window !== 'undefined' ? sessionStorage.getItem('userId') : null;
+    if (!id) router.push('/login');
+  }, [router]);
 
   return (
     <>
