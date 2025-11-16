@@ -95,6 +95,23 @@ export default function OtherProfilePage() {
     return `${first}${last}`.toUpperCase();
   };
 
+  function formatDateStable(iso: string) {
+    try {
+      return new Intl.DateTimeFormat('en-GB', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'UTC',
+      }).format(new Date(iso));
+    } catch {
+      return new Date(iso).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    }
+  }
+
   if (loading) return <div className="p-6">Loading...</div>;
   if (!profile) return <div className="p-6">Profile not found.</div>;
 
@@ -282,7 +299,7 @@ export default function OtherProfilePage() {
                     {v.description && <p className="mt-2 text-gray-700 line-clamp-3">{v.description}</p>}
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-xs text-gray-500">
-                        {new Date(String(v.createdAt ?? Date.now())).toLocaleDateString()}
+                        {formatDateStable(String(v.createdAt ?? Date.now()))}
                       </span>
                       <Link
                         href={`/post/${String(v._id ?? v.id)}`}

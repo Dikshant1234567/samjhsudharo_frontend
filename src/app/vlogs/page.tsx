@@ -11,7 +11,7 @@ type Vlog = {
   title: string;
   content: string;
   author: string;
-  authorId?: string; // added for linking to user details
+  authorId?: string; // added for profile linking
   createdAt: string; // ISO
   category: string;
 };
@@ -70,7 +70,6 @@ export default function VlogsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Optionally fetch existing insights/vlogs when API configured
     const fetchVlogs = async () => {
       try {
         const res = await fetch(`/api/post-vlogs`);
@@ -93,7 +92,7 @@ export default function VlogsPage() {
             title: p.title ?? "Untitled",
             content: p.description ?? p.content ?? "",
             author: authorName ?? (typeof window !== "undefined" ? sessionStorage.getItem("userName") || "Anonymous" : "Anonymous"),
-            authorId: authorId || undefined,
+            authorId: authorId || undefined, // added
             createdAt: p.createdAt ?? new Date().toISOString(),
             category: p.domain ?? "Personal Stories",
           };
@@ -102,7 +101,7 @@ export default function VlogsPage() {
         setError("");
       } catch (err) {
         console.error("Failed to fetch vlogs:", err);
-        setError(""); // silent fail, keep mock
+        setError("");
       }
     };
     fetchVlogs();
@@ -127,7 +126,7 @@ export default function VlogsPage() {
         title: title.trim(),
         content: content.trim(),
         author: authorName,
-        authorId, // include for linking
+        authorId, // added
         createdAt: new Date().toISOString(),
         category: composeCategory,
       };
@@ -167,6 +166,38 @@ export default function VlogsPage() {
       setPosting(false);
     }
   };
+
+  const handleEnhanceWithAI = async () => {
+    if (!title.trim() && !content.trim()) {
+      toast.error("Add a title or some content first.");
+      return;
+    }
+    setEnhancing(true);
+    try {
+      const res = await fetch("/api/ai/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, tone: "friendly" }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+      const data = await res.json();
+      setTitle(String(data.title ?? title));
+      setContent(String(data.content ?? content));
+      setAiSummary(String(data.summary ?? ''));
+      if (data.note) { toast.success(String(data.note)); } // surface fallback reason
+      toast.success("Enhanced with AI.");
+    } catch (err) {
+      console.error("AI enhance error:", err);
+      toast.error("Could not enhance with AI. Please try again.");
+    } finally {
+      setEnhancing(false);
+    }
+  };
+  const [enhancing, setEnhancing] = useState(false);   // added
+  const [aiSummary, setAiSummary] = useState<string>(""); // added
 
   return (
     <>
@@ -223,7 +254,14 @@ export default function VlogsPage() {
             rows={5}
             className="w-full border border-gray-200 rounded-md px-3 py-2 mb-3 resize-y focus:outline-none focus:ring-2 focus:ring-green-500"
           />
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleEnhanceWithAI}
+              disabled={enhancing}
+              className="px-4 py-2 rounded-md border text-sm bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            >
+              {enhancing ? "Enhancing..." : "Enhance with AI"}
+            </button>
             <button
               onClick={handlePost}
               disabled={posting}
@@ -232,6 +270,15 @@ export default function VlogsPage() {
               {posting ? "Posting..." : "Post Vlog"}
             </button>
           </div>
+
+          {aiSummary && (
+            <div className="mt-3 text-sm">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                AI Summary
+              </span>
+              <p className="mt-2 text-gray-700">{aiSummary}</p>
+            </div>
+          )}
         </div>
 
         {/* Vlog list */}
@@ -247,7 +294,7 @@ export default function VlogsPage() {
                 ) : (
                   <span className="font-medium">{vlog.author}</span>
                 )}{" "}
-                • {new Date(vlog.createdAt).toLocaleString()} • {vlog.category}
+                • {formatDateStable(vlog.createdAt)} • {vlog.category}
               </p>
               <p className="mt-3 text-gray-700 whitespace-pre-line">{vlog.content}</p>
             </article>
@@ -258,4 +305,22 @@ export default function VlogsPage() {
       </div>
     </>
   );
+}
+
+
+function formatDateStable(iso: string) {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'UTC',
+    }).format(new Date(iso));
+  } catch {
+    return new Date(iso).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  }
 }
